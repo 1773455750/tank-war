@@ -107,19 +107,6 @@
   /* ===== 移动端适配 ===== */
   body.is-mobile { touch-action: none; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
 
-  /* 横屏提示 */
-  #rotateHint {
-    position: fixed; inset: 0; z-index: 9999; display: none;
-    flex-direction: column; align-items: center; justify-content: center;
-    background: #0A1628; color: #00F0FF; text-align: center; gap: 20px;
-  }
-  #rotateHint .rh-icon { font-size: 64px; animation: rhPulse 1.5s ease-in-out infinite; }
-  #rotateHint .rh-text { font-size: 20px; letter-spacing: 3px; font-weight: 600; }
-  #rotateHint .rh-sub { font-size: 14px; color: rgba(0,240,255,0.5); }
-  @keyframes rhPulse { 0%,100%{transform:rotate(0deg) scale(1);} 50%{transform:rotate(90deg) scale(1.1);} }
-  body.is-mobile.portrait:not(.force-landscape) #rotateHint { display: flex; }
-  body.is-mobile.portrait:not(.force-landscape) #startMenu, body.is-mobile.portrait:not(.force-landscape) #hud { display: none !important; }
-
   /* 强制横屏兜底：当浏览器不支持 screen.orientation.lock 时，用 CSS 旋转整体画面 */
   body.is-mobile.force-landscape {
     position: fixed;
@@ -129,7 +116,6 @@
     transform-origin: center center;
     margin: 0;
   }
-  body.is-mobile.force-landscape #rotateHint { display: none !important; }
 
   /* 虚拟摇杆 */
   #joystickBase {
@@ -682,7 +668,7 @@
     <span>W A S D</span> 驾驶坦克移动 &nbsp;|&nbsp; <span>鼠标移动</span> 环顾炮塔视角<br>
     <span>鼠标左键 / 空格</span> 开火射击 &nbsp;|&nbsp; <span>1 - 6</span> 切换武器 &nbsp;|&nbsp; <span>ESC</span> 释放鼠标
   </div>
-  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.3-OFFLINE - single file + landscape auto-start</div>
+  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.4-OFFLINE - single file + auto landscape menu</div>
 </div>
 
 <!-- HUD -->
@@ -734,7 +720,6 @@
 <div id="watermark">jiangyuying</div>
 
 <!-- 移动端触控UI -->
-<div id="rotateHint"><div class="rh-icon">📱</div><div class="rh-text">请将手机旋转至横屏模式游玩</div><div class="rh-sub">STEEL TIDE 需要横屏体验</div></div>
 <div id="joystickBase"><div id="joystickKnob"></div></div>
 <div id="fireBtn"><svg viewBox="0 0 24 24"><path d="M13 2L4.09 12.97l5.91.03L11 22l8.91-10.97-5.91-.03L13 2z"/></svg><svg class="cd-ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" stroke-dasharray="301.6" stroke-dashoffset="0" id="cdCircle"/></svg></div>
 <div id="switchBtn"><div class="sb-icon">↻</div><div class="sb-name" id="sbName">AP</div></div><div id="pauseBtn">⏸</div>
@@ -6254,16 +6239,16 @@ function setupMobileControls() {
   document.addEventListener('touchstart', () => { resetHUDTimer(); }, { passive: true });
 }
 
-let autoStarted = false;   // 移动端横屏自动启动（每次页面加载仅一次；玩家主动返回菜单后不再强制）
+// 手机端进入页面即自动进入横屏模式：竖屏时用CSS旋转直接呈现横屏画面（主菜单立即可见可点），
+// 物理横屏时用正常布局。不再显示"请旋转至横屏"提示，也无需等待用户旋转手机。
+// 点击"开始战斗"时 startBtn 处理器仍会尝试真实全屏+方向锁（forceLandscape），成功后自动切回正常布局
 function checkOrientation() {
   isPortrait = window.innerHeight > window.innerWidth;
   document.body.classList.toggle('portrait', isPortrait);
-  // 物理横屏后移除CSS旋转兜底
-  if (!isPortrait) document.body.classList.remove('force-landscape');
-  // 移动端：横屏即自动进入游戏（页面加载时已横屏，或竖屏旋转至横屏后），无需点击按钮
-  if (isMobile && !isPortrait && !autoStarted && gameState === 'menu') {
-    autoStarted = true;
-    startGame();
+  const want = isPortrait;   // 竖屏 → CSS旋转兜底；物理横屏 → 正常布局
+  if (want !== document.body.classList.contains('force-landscape')) {
+    document.body.classList.toggle('force-landscape', want);
+    if (renderer) setTimeout(onResize, 100);   // 旋转基准变化后重设画布（仅变化时触发一次，避免与onResize互相循环）
   }
 }
 
@@ -7680,7 +7665,7 @@ function toMenu() {
   if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
   const so = screen.orientation;
   if (so && so.unlock) try { so.unlock(); } catch (e) {}
-  document.body.classList.remove('force-landscape');
+  if (isMobile) checkOrientation();   // 竖屏握持时主菜单仍自动呈现横屏画面
   if (document.pointerLockElement) document.exitPointerLock();
   showMobileControls(false);
   showPauseBtn(false);
