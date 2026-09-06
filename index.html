@@ -682,7 +682,7 @@
     <span>W A S D</span> 驾驶坦克移动 &nbsp;|&nbsp; <span>鼠标移动</span> 环顾炮塔视角<br>
     <span>鼠标左键 / 空格</span> 开火射击 &nbsp;|&nbsp; <span>1 - 6</span> 切换武器 &nbsp;|&nbsp; <span>ESC</span> 释放鼠标
   </div>
-  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.2-OFFLINE - single file + mobile auto-landscape</div>
+  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.3-OFFLINE - single file + landscape auto-start</div>
 </div>
 
 <!-- HUD -->
@@ -5873,8 +5873,8 @@ function setupControls() {
 
   document.addEventListener('mousemove', e => {
     if (mouseLocked && gameState === 'playing') {
-      yaw += e.movementX * 0.0022; // 鼠标右移 → 视角右转（修复水平反向）
-      pitch -= e.movementY * 0.0022;
+      yaw += e.movementX * 0.0022; // 鼠标右移 → 视角右转
+      pitch += e.movementY * 0.0022; // 鼠标上滑(movementY<0) → pitch减小 → 视线上仰（符合直觉）
       pitch = Math.max(-0.35, Math.min(0.15, pitch));
     }
   });
@@ -6106,6 +6106,12 @@ function setupMobileControls() {
   // 长按菜单
   document.addEventListener('contextmenu', e => { if (isMobile) e.preventDefault(); });
 
+  // 自动启动无用户手势，音频上下文会被挂起：首次触摸时初始化并恢复
+  document.addEventListener('touchstart', () => {
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }, { passive: true, once: true });
+
   // ===== 左手摇杆（动态生成在左半屏首次触摸位置）=====
   document.addEventListener('touchstart', e => {
     if (gameState !== 'playing') return;
@@ -6248,9 +6254,17 @@ function setupMobileControls() {
   document.addEventListener('touchstart', () => { resetHUDTimer(); }, { passive: true });
 }
 
+let autoStarted = false;   // 移动端横屏自动启动（每次页面加载仅一次；玩家主动返回菜单后不再强制）
 function checkOrientation() {
   isPortrait = window.innerHeight > window.innerWidth;
   document.body.classList.toggle('portrait', isPortrait);
+  // 物理横屏后移除CSS旋转兜底
+  if (!isPortrait) document.body.classList.remove('force-landscape');
+  // 移动端：横屏即自动进入游戏（页面加载时已横屏，或竖屏旋转至横屏后），无需点击按钮
+  if (isMobile && !isPortrait && !autoStarted && gameState === 'menu') {
+    autoStarted = true;
+    startGame();
+  }
 }
 
 function updateMobileSwitchBtn() {
@@ -6783,6 +6797,9 @@ function updatePlayer(dt) {
 
   // 车头始终跟随视角方向：车身朝向与视角(yaw)保持一致
   tankYaw = yaw;
+  // 应用到坦克模型：炮管为局部+Z轴，视线水平方向为(sin yaw,0,-cos yaw)，
+  // 需 rotation.y = π - yaw 才能让炮管对准视线前方（与敌方 atan2(dx,dz) 约定一致）
+  player.rotation.y = Math.PI - tankYaw;
 
   if (Math.abs(mx) > 0.02 || Math.abs(mz) > 0.02) {
     // WASD/摇杆 相对于视角准心方向移动
