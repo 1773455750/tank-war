@@ -117,27 +117,40 @@
     margin: 0;
   }
 
-  /* 虚拟摇杆 */
-  #joystickBase {
-    position: fixed; width: 17vmin; height: 17vmin; min-width: 110px; min-height: 110px;
-    border-radius: 50%; z-index: 95; display: none; pointer-events: none;
-    background: radial-gradient(circle, rgba(0,240,255,0.06) 40%, rgba(10,22,40,0.25) 70%);
-    border: 2px solid rgba(0,240,255,0.3);
-    box-shadow: 0 0 20px rgba(0,240,255,0.15), inset 0 0 20px rgba(0,240,255,0.05);
-    transition: opacity 0.2s;
+  /* 左手固定滑动操控区（左下角）与右手视角提示环 */
+  #moveZone {
+    position: fixed; left: 1.5%; bottom: 2%; width: 36%; height: 38%;
+    z-index: 90; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(10,22,40,0.22);
+    border: 1px solid rgba(0,240,255,0.22); border-radius: 18px;
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    touch-action: none;
   }
-  #joystickBase.active { display: block; }
-  #joystickBase::before {
-    content: ''; position: absolute; inset: -6px; border-radius: 50%;
-    border: 1px solid rgba(0,240,255,0.15); animation: joyPulse 2s ease-in-out infinite;
+  #moveZone.show { display: flex; }
+  #moveZone.active { border-color: rgba(0,240,255,0.65); box-shadow: 0 0 18px rgba(0,240,255,0.28), inset 0 0 24px rgba(0,240,255,0.08); }
+  .mz-cross { position: relative; width: 30vmin; height: 30vmin; max-width: 140px; max-height: 140px; }
+  .mz-arrow {
+    position: absolute; font-size: 20px; line-height: 1;
+    color: rgba(0,240,255,0.32); transition: color 0.08s;
   }
-  @keyframes joyPulse { 0%,100%{transform:scale(1);opacity:0.3;} 50%{transform:scale(1.08);opacity:0.6;} }
-  #joystickKnob {
-    position: absolute; width: 40%; height: 40%; top: 30%; left: 30%;
-    border-radius: 50%; background: radial-gradient(circle, #00F0FF 0%, rgba(0,180,220,0.6) 70%);
-    box-shadow: 0 0 18px rgba(0,240,255,0.5), inset 0 1px 4px rgba(255,255,255,0.3);
-    transition: transform 0.08s ease-out;
+  .mz-up { top: 2%; left: 50%; transform: translateX(-50%); }
+  .mz-down { bottom: 2%; left: 50%; transform: translateX(-50%); }
+  .mz-left { left: 4%; top: 50%; transform: translateY(-50%); }
+  .mz-right { right: 4%; top: 50%; transform: translateY(-50%); }
+  .mz-arrow.lit { color: #00F0FF; text-shadow: 0 0 10px rgba(0,240,255,0.95); }
+  .mz-dot {
+    position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%; background: rgba(0,240,255,0.65); box-shadow: 0 0 8px rgba(0,240,255,0.8);
   }
+  #lookHint {
+    position: fixed; right: 3%; top: 50%; width: 40vmin; height: 40vmin;
+    transform: translateY(-50%);
+    border: 1px dashed rgba(0,240,255,0.10);
+    border-radius: 50%;
+    z-index: 85; display: none; pointer-events: none;
+  }
+  #lookHint.show { display: block; }
 
   /* 开火按钮 */
   #fireBtn {
@@ -668,7 +681,7 @@
     <span>W A S D</span> 驾驶坦克移动 &nbsp;|&nbsp; <span>鼠标移动</span> 环顾炮塔视角<br>
     <span>鼠标左键 / 空格</span> 开火射击 &nbsp;|&nbsp; <span>1 - 6</span> 切换武器 &nbsp;|&nbsp; <span>ESC</span> 释放鼠标
   </div>
-  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.4-OFFLINE - single file + auto landscape menu</div>
+  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.5-OFFLINE - single file + fixed-zone slide controls</div>
 </div>
 
 <!-- HUD -->
@@ -720,7 +733,8 @@
 <div id="watermark">jiangyuying</div>
 
 <!-- 移动端触控UI -->
-<div id="joystickBase"><div id="joystickKnob"></div></div>
+<div id="moveZone"><div class="mz-cross"><div class="mz-arrow mz-up">▲</div><div class="mz-arrow mz-down">▼</div><div class="mz-arrow mz-left">◀</div><div class="mz-arrow mz-right">▶</div><div class="mz-dot"></div></div></div>
+<div id="lookHint"></div>
 <div id="fireBtn"><svg viewBox="0 0 24 24"><path d="M13 2L4.09 12.97l5.91.03L11 22l8.91-10.97-5.91-.03L13 2z"/></svg><svg class="cd-ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" stroke-dasharray="301.6" stroke-dashoffset="0" id="cdCircle"/></svg></div>
 <div id="switchBtn"><div class="sb-icon">↻</div><div class="sb-name" id="sbName">AP</div></div><div id="pauseBtn">⏸</div>
 <div id="pauseBadge">⏸ 暂停中</div>
@@ -6040,17 +6054,15 @@ let isPortrait = false;
 
 // 触控输入状态（与桌面端keys并行使用）
 const touchInput = {
-  moveX: 0, moveZ: 0,   // 摇杆偏移 -1..1
-  lookDX: 0, lookDY: 0, // 视角增量
+  moveZ: 0,             // 左手上下滑动幅度 -1..1（上滑=前进<0，下滑=后退>0），幅度∝速度
+  turn: 0,              // 左手左右滑动 → 坦克转向速率 -1..1（左滑<0左转，右滑>0右转）
   firing: false,         // 是否按住开火
   fireHeld: false
 };
 
-// 摇杆状态
-let joyActive = false;
-let joyId = null;
-let joyCX = 0, joyCY = 0;  // 摇杆中心
-const joyRadius = 60;       // 最大偏移半径
+// 左手滑动状态（固定区域：左下角 moveZone）
+let moveId = null, moveStartX = 0, moveStartY = 0;
+const MOVE_RADIUS = 64;     // 滑动满幅像素（视觉坐标）
 
 // 视角控制状态
 let lookId = null;
@@ -6075,8 +6087,6 @@ function setupMobileControls() {
   checkOrientation();
   window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 100));
 
-  const joyBase = document.getElementById('joystickBase');
-  const joyKnob = document.getElementById('joystickKnob');
   const fireBtn = document.getElementById('fireBtn');
   const switchBtn = document.getElementById('switchBtn');
   const cdCircle = document.getElementById('cdCircle');
@@ -6097,31 +6107,84 @@ function setupMobileControls() {
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   }, { passive: true, once: true });
 
-  // ===== 左手摇杆（动态生成在左半屏首次触摸位置）=====
+  // ===== 左手固定区域滑动控制（左下角 moveZone）：上/下=前进/后退，左/右=转向 =====
+  const moveZone = document.getElementById('moveZone');
+  const mzArrows = {
+    up: moveZone.querySelector('.mz-up'),
+    down: moveZone.querySelector('.mz-down'),
+    left: moveZone.querySelector('.mz-left'),
+    right: moveZone.querySelector('.mz-right')
+  };
+  function mzSetArrow(el, lit, strength) {
+    if (lit) {
+      el.classList.add('lit');
+      el.style.opacity = (0.45 + 0.55 * Math.min(1, strength)).toFixed(2);
+    } else {
+      el.classList.remove('lit');
+      el.style.opacity = '';
+    }
+  }
+  function mzResetArrows() {
+    mzSetArrow(mzArrows.up, false, 0);
+    mzSetArrow(mzArrows.down, false, 0);
+    mzSetArrow(mzArrows.left, false, 0);
+    mzSetArrow(mzArrows.right, false, 0);
+  }
+  function moveRelease() {
+    moveId = null;
+    touchInput.moveZ = 0;
+    touchInput.turn = 0;
+    moveZone.classList.remove('active');
+    mzResetArrows();
+  }
+
+  moveZone.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (gameState !== 'playing' || moveId !== null) return;
+    const t = e.changedTouches[0];
+    const v = visualTouchXY(t.clientX, t.clientY);
+    moveId = t.identifier;
+    moveStartX = v.x;
+    moveStartY = v.y;
+    moveZone.classList.add('active');
+    if (navigator.vibrate) navigator.vibrate(10);
+    resetHUDTimer();
+  }, { passive: false });
+
+  moveZone.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (gameState !== 'playing') return;
+    for (const t of e.changedTouches) {
+      if (t.identifier !== moveId) continue;
+      const v = visualTouchXY(t.clientX, t.clientY);
+      let dx = v.x - moveStartX;
+      let dy = v.y - moveStartY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > MOVE_RADIUS) { dx = dx / dist * MOVE_RADIUS; dy = dy / dist * MOVE_RADIUS; }
+      const nx = dx / MOVE_RADIUS, ny = dy / MOVE_RADIUS;   // -1..1，上滑 ny<0
+      touchInput.moveZ = ny;   // 上滑前进(-z)、下滑后退(+z)，滑动距离∝速度
+      touchInput.turn = nx;    // 左滑左转、右滑右转
+      mzSetArrow(mzArrows.up, ny < -0.15, -ny);
+      mzSetArrow(mzArrows.down, ny > 0.15, ny);
+      mzSetArrow(mzArrows.left, nx < -0.15, -nx);
+      mzSetArrow(mzArrows.right, nx > 0.15, nx);
+    }
+  }, { passive: false });
+
+  moveZone.addEventListener('touchend', e => {
+    for (const t of e.changedTouches) if (t.identifier === moveId) moveRelease();
+  });
+  moveZone.addEventListener('touchcancel', () => { moveRelease(); });
+
+  // ===== 右半屏空白区域滑动 → 视角/准心控制（排除按钮；左手moveZone自行接管移动）=====
   document.addEventListener('touchstart', e => {
     if (gameState !== 'playing') return;
     const vw = gameViewportSize().w;
     for (const t of e.changedTouches) {
       const v = visualTouchXY(t.clientX, t.clientY);
-      // 左半屏，且非按钮区域
-      if (v.x < vw / 2 && joyId === null) {
-        // 排除点击在UI按钮上
-        const el = document.elementFromPoint(t.clientX, t.clientY);
-        if (el && el.closest('#fireBtn, #switchBtn, #pauseBtn, #hud, #shopModal, #settingsModal, #confirmDialog, #pauseOverlay, #statsModal, #rankModal')) continue;
-        joyId = t.identifier;
-        joyCX = v.x;
-        joyCY = v.y;
-        joyActive = true;
-        joyBase.style.left = (joyCX - joyBase.offsetWidth / 2) + 'px';
-        joyBase.style.top = (joyCY - joyBase.offsetHeight / 2) + 'px';
-        joyBase.classList.add('active');
-        if (navigator.vibrate) navigator.vibrate(15);
-        resetHUDTimer();
-      }
-      // 右半屏空白区域 → 视角控制（排除按钮）
       if (v.x >= vw / 2 && lookId === null) {
         const el = document.elementFromPoint(t.clientX, t.clientY);
-        if (el && el.closest('#fireBtn, #switchBtn, #pauseBtn, #hud, #shopModal, #settingsModal, #confirmDialog, #pauseOverlay, #statsModal, #rankModal')) continue;
+        if (el && el.closest('#fireBtn, #switchBtn, #pauseBtn, #moveZone, #hud, #shopModal, #settingsModal, #confirmDialog, #pauseOverlay, #statsModal, #rankModal')) continue;
         lookId = t.identifier;
         lookLastX = v.x;
         lookLastY = v.y;
@@ -6133,26 +6196,14 @@ function setupMobileControls() {
   document.addEventListener('touchmove', e => {
     if (gameState !== 'playing') return;
     for (const t of e.changedTouches) {
-      const v = visualTouchXY(t.clientX, t.clientY);
-      // 摇杆移动
-      if (t.identifier === joyId) {
-        let dx = v.x - joyCX;
-        let dy = v.y - joyCY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > joyRadius) { dx = dx / dist * joyRadius; dy = dy / dist * joyRadius; }
-        joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-        // 映射到移动：上=前进(-z), 下=后退(+z), 左=左移(-x), 右=右移(+x)
-        touchInput.moveX = dx / joyRadius;
-        touchInput.moveZ = dy / joyRadius;
-      }
-      // 视角滑动
       if (t.identifier === lookId) {
+        const v = visualTouchXY(t.clientX, t.clientY);
         const dx = v.x - lookLastX;
         const dy = v.y - lookLastY;
         lookLastX = v.x;
         lookLastY = v.y;
         // 方向与桌面端统一：右滑右转（修复水平反向）；上滑上看（保持原竖直方向）
-        // 灵敏度 0.008 rad/px（原0.004偏迟钝），直接本帧应用避免累积延迟
+        // 灵敏度 0.008 rad/px，直接本帧应用避免累积延迟
         yaw += dx * 0.008;
         pitch += dy * 0.008;
         pitch = Math.max(-0.35, Math.min(0.15, pitch));
@@ -6162,29 +6213,12 @@ function setupMobileControls() {
 
   document.addEventListener('touchend', e => {
     for (const t of e.changedTouches) {
-      if (t.identifier === joyId) {
-        joyId = null; joyActive = false;
-        touchInput.moveX = 0; touchInput.moveZ = 0;
-        // 回弹动画
-        joyKnob.style.transition = 'transform 0.15s ease-out';
-        joyKnob.style.transform = 'translate(0,0)';
-        setTimeout(() => { joyKnob.style.transition = ''; }, 150);
-        setTimeout(() => { if (!joyActive) joyBase.classList.remove('active'); }, 200);
-      }
-      if (t.identifier === lookId) {
-        lookId = null;
-      }
+      if (t.identifier === lookId) lookId = null;
     }
   });
 
   document.addEventListener('touchcancel', e => {
-    // touchcancel 触发时重置所有
     for (const t of e.changedTouches) {
-      if (t.identifier === joyId) {
-        joyId = null; joyActive = false; touchInput.moveX = 0; touchInput.moveZ = 0;
-        joyKnob.style.transform = 'translate(0,0)';
-        joyBase.classList.remove('active');
-      }
       if (t.identifier === lookId) lookId = null;
     }
   });
@@ -6262,8 +6296,9 @@ function showMobileControls(show) {
   if (!isMobile) return;
   document.getElementById('fireBtn').style.display = show ? 'flex' : 'none';
   document.getElementById('switchBtn').style.display = show ? 'flex' : 'none';
-  // 摇杆在touchstart时动态显示
-  if (!show) document.getElementById('joystickBase').classList.remove('active');
+  // 左下角固定滑动操控区 + 右手视角提示环
+  document.getElementById('moveZone').classList.toggle('show', show);
+  document.getElementById('lookHint').classList.toggle('show', show);
 }
 
 // 更新开火冷却环
@@ -6768,16 +6803,14 @@ function updatePlayer(dt) {
   if (keys['KeyS']) mz += 1;
   if (keys['KeyA']) mx -= 1;
   if (keys['KeyD']) mx += 1;
-  // 移动端触控输入（与键盘叠加取最大幅度）
-  if (isMobile && Math.abs(touchInput.moveX) + Math.abs(touchInput.moveZ) > 0.05) {
-    const tLen = Math.hypot(touchInput.moveX, touchInput.moveZ);
-    mx = (mx !== 0) ? Math.max(-1, Math.min(1, mx + touchInput.moveX)) : touchInput.moveX;
-    mz = (mz !== 0) ? Math.max(-1, Math.min(1, mz + touchInput.moveZ)) : touchInput.moveZ;
-    // 以摇杆幅度为速度系数
-    const joyScale = Math.min(1, tLen);
-    const kScale = (Math.abs(mx) + Math.abs(mz)) || 1;
-    mx = mx / kScale * joyScale;
-    mz = mz / kScale * joyScale;
+  // 移动端触控：左手滑动 上=前进/下=后退（幅度∝速度），与键盘叠加
+  if (isMobile && Math.abs(touchInput.moveZ) > 0.05) {
+    mz = Math.max(-1, Math.min(1, mz + touchInput.moveZ));
+  }
+
+  // 移动端转向：左手左右滑动 → 车头随视角，直接改变yaw（视角与车身同步旋转）
+  if (isMobile && Math.abs(touchInput.turn) > 0.05) {
+    yaw += touchInput.turn * 2.2 * dt;
   }
 
   // 车头始终跟随视角方向：车身朝向与视角(yaw)保持一致
