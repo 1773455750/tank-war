@@ -681,7 +681,7 @@
     <span>W A S D</span> 驾驶坦克移动 &nbsp;|&nbsp; <span>鼠标移动</span> 环顾炮塔视角<br>
     <span>鼠标左键 / 空格</span> 开火射击 &nbsp;|&nbsp; <span>1 - 6</span> 切换武器 &nbsp;|&nbsp; <span>ESC</span> 释放鼠标
   </div>
-  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.5-OFFLINE - single file + fixed-zone slide controls</div>
+  <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:1px;margin-top:6px;">BUILD v10.6-OFFLINE - single file + rotated-touch fix</div>
 </div>
 
 <!-- HUD -->
@@ -6072,11 +6072,12 @@ let lookLastX = 0, lookLastY = 0;
 let hudHideTimer = null;
 let lastInputTime = Date.now();
 
-// CSS强制横屏时，将视口触控坐标转换为旋转后的视觉坐标
-// 旋转矩阵：visual_x = innerHeight - clientY, visual_y = clientX
+// CSS强制横屏时，将视口触控坐标转换为旋转后的布局坐标
+// CSS使用 rotate(90deg)：layout_x = clientY, layout_y = innerWidth - clientX（与屏幕旋转方向一致）
+// （旧映射与屏幕旋转相差180°，导致左手移动方向完全相反、且视角控制落在左手侧而非右半屏）
 function visualTouchXY(cx, cy) {
   if (isMobile && document.body.classList.contains('force-landscape')) {
-    return { x: window.innerHeight - cy, y: cx };
+    return { x: cy, y: window.innerWidth - cx };
   }
   return { x: cx, y: cy };
 }
@@ -6826,7 +6827,7 @@ function updatePlayer(dt) {
     const forward = new THREE.Vector3(sinY, 0, -cosY);
     const right = new THREE.Vector3(cosY, 0, sinY);
     const moveDir = forward.multiplyScalar(-mz).add(right.multiplyScalar(mx));
-    // 摇杆有幅度，使用原长（已按joyScale缩放）；键盘则需归一化
+    // 触控滑动有幅度（-1..1），使用原长；键盘输入则需归一化
     const len = moveDir.length();
     if (len > 1) moveDir.multiplyScalar(1 / len);
     const newPos = player.position.clone().add(moveDir.multiplyScalar(moveSpeed));
